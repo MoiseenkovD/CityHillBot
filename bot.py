@@ -370,9 +370,7 @@ async def on_contact_text(message: types.Message, state: FSMContext):
         f"Служение: <b>{department}</b>\n"
         f"Имя (введено): <b>{full_name}</b>\n"
         f"Username: {username}\n"
-        f"User ID: <code>{message.from_user.id}</code>\n"
-        f"Телефон: <code>{phone}</code>\n"
-        "Комментарий: номер введён вручную"
+        f"Телефон: <code>{phone}</code>"
     )
     try:
         await bot.send_message(chat_id=TARGET_CHAT_ID, text=text_for_group)
