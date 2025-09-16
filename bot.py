@@ -45,7 +45,7 @@ WELCOME_TEXT = (
 CATEGORY_TITLES: Dict[str, str] = {
     "worship":      "🎤 Worship",
     "kids":         "👶 Kids",
-    "youth":        "🔥 Youth",
+    "youth":        "🔥 Youth | Teens",
     "media":        "🎥 Media",
     "welcome":      "🤝 Welcome Service",
     "hospitality":  "🥗 Hospitality",
