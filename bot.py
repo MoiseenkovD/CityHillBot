@@ -18,7 +18,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-TARGET_CHAT_ID = os.getenv("TARGET_CHAT_ID")
+TARGET_CHAT_ID = os.getenv("TARGET_CHAT_ID")  # основная группа для заявок
+START_FEED_CHAT_ID = os.getenv("START_FEED_CHAT_ID")  # вторая группа для уведомлений о старте (опционально)
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN не найден в .env")
@@ -26,6 +27,13 @@ if not TARGET_CHAT_ID:
     raise ValueError("TARGET_CHAT_ID не найден в .env")
 
 TARGET_CHAT_ID = int(TARGET_CHAT_ID)
+
+# Опциональный канал для уведомлений о старте
+if START_FEED_CHAT_ID:
+    try:
+        START_FEED_CHAT_ID = int(START_FEED_CHAT_ID)
+    except ValueError:
+        START_FEED_CHAT_ID = None
 
 
 WELCOME_TEXT = (
@@ -41,7 +49,6 @@ WELCOME_TEXT = (
     "Если ты готов(а) сделать шаг — выбери направление, в котором хотел(а) бы служить, и мы свяжемся с тобой 🙏"
 )
 
-
 CATEGORY_TITLES: Dict[str, str] = {
     "worship":      "🎤 Worship",
     "kids":         "👶 Kids",
@@ -49,9 +56,15 @@ CATEGORY_TITLES: Dict[str, str] = {
     "media":        "🎥 Media",
     "welcome":      "🤝 Welcome Service",
     "hospitality":  "🥗 Hospitality",
+    "discover":     "✨ Discover Your Calling",
 }
 
 CATEGORY_HEADLINES: Dict[str, str] = {
+    "discover": (
+        "Иногда бывает непросто понять, где именно служить и какое направление выбрать. "
+        "Но не переживайте — вы не одни! Наши лидеры с радостью помогут вам открыть ваши дары "
+        "и найти то служение, где вы сможете приносить наибольшую радость и пользу."
+    ),
     "worship":     "Будь частью команды, которая ведёт людей в Божье присутствие!",
     "kids":        "Вложи своё сердце в будущее поколение!",
     "youth":       "Помогай молодым раскрывать свой потенциал и строить жизнь с Богом!",
@@ -60,6 +73,7 @@ CATEGORY_HEADLINES: Dict[str, str] = {
     "hospitality": "Служи людям через простые, но очень важные вещи — еду, кофе и уют.",
 }
 
+# Для discover нет отделов — после выбора категории сразу показываем кнопку "Подать заявку"
 DEPARTMENTS_BY_CATEGORY: Dict[str, List[str]] = {
     "worship": ["Singers", "Musicians"],
     "kids": ["Sunday school", "ICan (special kids)"],
@@ -70,6 +84,7 @@ DEPARTMENTS_BY_CATEGORY: Dict[str, List[str]] = {
 }
 
 DEPT_DESCRIPTIONS_BY_CATEGORY: Dict[str, Dict[str, str]] = {
+    # discover без отделов — описание выше, в тексте категории
     "worship": {
         "Singers": "используй свой голос, чтобы вдохновлять и поклоняться.",
         "Musicians": "твои ноты и аккорды оживляют атмосферу хвалы.",
@@ -102,9 +117,7 @@ DEPT_DESCRIPTIONS_BY_CATEGORY: Dict[str, Dict[str, str]] = {
     },
 }
 
-
 PHONE_RE = re.compile(r"\+?\d[\d\-\s\(\)]{8,}")
-
 
 def extract_phone(text: str) -> Optional[str]:
     if not text:
@@ -119,7 +132,6 @@ def extract_phone(text: str) -> Optional[str]:
         return None
     return f"+{digits}" if has_plus else digits
 
-
 def categories_keyboard(cols: int = 2) -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(text=title, callback_data=f"cat:{key}")
@@ -128,7 +140,6 @@ def categories_keyboard(cols: int = 2) -> InlineKeyboardMarkup:
     rows = [buttons[i:i+cols] for i in range(0, len(buttons), cols)]
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
-
 def departments_keyboard(category_key: str, cols: int = 2) -> InlineKeyboardMarkup:
     items = DEPARTMENTS_BY_CATEGORY.get(category_key, [])
     buttons = [InlineKeyboardButton(text=name, callback_data=f"dept:{name}") for name in items]
@@ -136,19 +147,16 @@ def departments_keyboard(category_key: str, cols: int = 2) -> InlineKeyboardMark
     rows.append([InlineKeyboardButton(text="⬅️ Back to categories", callback_data="back:categories")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
-
 def dept_apply_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Подать заявку", callback_data="apply:selected")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="back:depts")],
     ])
 
-
 def build_category_description_text(category_key: str) -> str:
     title = CATEGORY_TITLES.get(category_key, "—")
     head = CATEGORY_HEADLINES.get(category_key, "")
     return f"{title}\n{head}"
-
 
 def build_dept_description_text(category_key: str, department: str) -> str:
     cat_title = CATEGORY_TITLES.get(category_key, "—")
@@ -158,7 +166,6 @@ def build_dept_description_text(category_key: str, department: str) -> str:
     middle = f"• <b>{department}</b> — {desc}" if desc else f"• <b>{department}</b>"
     return f"{top}\n\n{middle}\n\nГотов(а) присоединиться? Нажми кнопку ниже 👇"
 
-
 class JoinFlow(StatesGroup):
     waiting_category = State()
     waiting_department = State()
@@ -166,10 +173,8 @@ class JoinFlow(StatesGroup):
     waiting_fullname = State()
     waiting_contact = State()
 
-
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher(storage=MemoryStorage())
-
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
@@ -177,6 +182,21 @@ async def cmd_start(message: types.Message, state: FSMContext):
     await message.answer(WELCOME_TEXT, reply_markup=categories_keyboard())
     await state.set_state(JoinFlow.waiting_category)
 
+    # --- Уведомление во вторую группу об отклике на /start (если настроено) ---
+    if START_FEED_CHAT_ID:
+        try:
+            username = f"@{message.from_user.username}" if message.from_user.username else "(нет username)"
+            # Без HTML-тегов, чтобы не париться с экранированием имени
+            feed_text = (
+                "📣 Новый отклик: /start\n"
+                f"Имя: {message.from_user.full_name}\n"
+                f"Username: {username}\n"
+                f"User ID: {message.from_user.id}\n"
+            )
+            await bot.send_message(chat_id=START_FEED_CHAT_ID, text=feed_text)
+        except Exception as e:
+            # Тихо игнорируем ошибку, чтобы не мешать основному сценарию
+            print(f"[WARN] Не удалось отправить уведомление о старте: {e}")
 
 @dp.callback_query(F.data.startswith("cat:"))
 async def on_category_chosen(callback: types.CallbackQuery, state: FSMContext):
@@ -191,18 +211,27 @@ async def on_category_chosen(callback: types.CallbackQuery, state: FSMContext):
         return
 
     await state.update_data(category_key=category_key)
+
+    # Особая логика для discover: описание + кнопка "Подать заявку"
+    if category_key == "discover":
+        await state.update_data(department="Discover consultation")  # виртуальное служение для заявки
+        text = build_category_description_text(category_key)
+        await callback.message.edit_text(text, reply_markup=dept_apply_keyboard())
+        await state.set_state(JoinFlow.waiting_apply)
+        await callback.answer()
+        return
+
+    # Обычный путь для остальных категорий
     text = build_category_description_text(category_key)
     await callback.message.edit_text(text, reply_markup=departments_keyboard(category_key))
     await state.set_state(JoinFlow.waiting_department)
     await callback.answer()
-
 
 @dp.callback_query(F.data == "back:categories")
 async def on_back_to_categories(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text(WELCOME_TEXT, reply_markup=categories_keyboard())
     await state.set_state(JoinFlow.waiting_category)
     await callback.answer()
-
 
 @dp.callback_query(F.data.startswith("dept:"))
 async def on_department_chosen(callback: types.CallbackQuery, state: FSMContext):
@@ -225,7 +254,6 @@ async def on_department_chosen(callback: types.CallbackQuery, state: FSMContext)
     await state.set_state(JoinFlow.waiting_apply)
     await callback.answer()
 
-
 @dp.callback_query(F.data == "back:depts")
 async def on_back_to_depts(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -233,11 +261,18 @@ async def on_back_to_depts(callback: types.CallbackQuery, state: FSMContext):
     if not category_key:
         await callback.answer("Нет активного раздела. Нажмите /start.", show_alert=True)
         return
+
+    # Для discover возвращаемся к списку категорий (там нет отделов)
+    if category_key == "discover":
+        await callback.message.edit_text(WELCOME_TEXT, reply_markup=categories_keyboard())
+        await state.set_state(JoinFlow.waiting_category)
+        await callback.answer()
+        return
+
     text = build_category_description_text(category_key)
     await callback.message.edit_text(text, reply_markup=departments_keyboard(category_key))
     await state.set_state(JoinFlow.waiting_department)
     await callback.answer()
-
 
 @dp.callback_query(F.data == "apply:selected")
 async def on_apply_selected(callback: types.CallbackQuery, state: FSMContext):
@@ -255,7 +290,6 @@ async def on_apply_selected(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(JoinFlow.waiting_fullname)
     await callback.answer()
 
-
 @dp.message(F.text.casefold() == "отмена")
 async def cancel_any(message: types.Message, state: FSMContext):
     await state.clear()
@@ -263,7 +297,6 @@ async def cancel_any(message: types.Message, state: FSMContext):
         "Отменено. Если захочешь начать заново — напиши /start.",
         reply_markup=types.ReplyKeyboardRemove()
     )
-
 
 @dp.message(JoinFlow.waiting_fullname, F.text)
 async def on_fullname(message: types.Message, state: FSMContext):
@@ -287,7 +320,6 @@ async def on_fullname(message: types.Message, state: FSMContext):
         )
     )
     await state.set_state(JoinFlow.waiting_contact)
-
 
 @dp.message(JoinFlow.waiting_contact, F.contact)
 async def on_contact_shared(message: types.Message, state: FSMContext):
@@ -334,7 +366,6 @@ async def on_contact_shared(message: types.Message, state: FSMContext):
         reply_markup=types.ReplyKeyboardRemove()
     )
     await state.clear()
-
 
 @dp.message(JoinFlow.waiting_contact, F.text)
 async def on_contact_text(message: types.Message, state: FSMContext):
@@ -390,7 +421,6 @@ async def on_contact_text(message: types.Message, state: FSMContext):
     )
     await state.clear()
 
-
 @dp.message(Command("help"))
 async def cmd_help(message: types.Message):
     await message.answer(
@@ -399,11 +429,9 @@ async def cmd_help(message: types.Message):
         "/help — помощь"
     )
 
-
 @dp.message(Command("id"))
 async def cmd_id(message: types.Message):
     await message.answer(f"chat_id этого чата: <code>{message.chat.id}</code>")
-
 
 async def main():
     print("Bot is running...")
@@ -411,3 +439,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
