@@ -5,7 +5,7 @@ from aiogram.types import ReplyKeyboardRemove
 from states import JoinFlow
 from texts import ASK_FULLNAME_TEXT, AFTER_FULLNAME_TEXT, PHONE_NOT_RECOGNIZED, THANKS_SENT
 from keyboards import contact_request_kb
-from utils import extract_phone
+from utils import extract_phone, user_link
 from data import CATEGORY_TITLES
 from config import TARGET_CHAT_ID
 
@@ -55,7 +55,11 @@ async def on_contact_shared(message: types.Message, state: FSMContext):
         else f"передал(а) контакт: {contact.first_name or ''} {contact.last_name or ''}".strip()
     )
 
-    username = f"@{message.from_user.username}" if message.from_user.username else "(нет username)"
+    username = (
+        f"@{message.from_user.username}"
+        if message.from_user.username
+        else user_link(message.from_user, f"{message.from_user.full_name}")
+    )
     phone = contact.phone_number
 
     text_for_group = (
@@ -64,7 +68,6 @@ async def on_contact_shared(message: types.Message, state: FSMContext):
         f"Служение: <b>{department}</b>\n"
         f"Имя (введено): <b>{full_name}</b>\n"
         f"Username: {username}\n"
-        f"User ID: <code>{message.from_user.id}</code>\n"
         f"Телефон: <code>{phone}</code>\n"
         f"Комментарий: {contact_owner}"
     )

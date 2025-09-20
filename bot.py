@@ -339,7 +339,11 @@ async def on_contact_shared(message: types.Message, state: FSMContext):
         else f"передал(а) контакт: {contact.first_name or ''} {contact.last_name or ''}".strip()
     )
 
-    username = f"@{message.from_user.username}" if message.from_user.username else "(нет username)"
+    username = (
+        f"@{message.from_user.username}"
+        if message.from_user.username
+        else user_link(message.from_user, f"{message.from_user.full_name}")
+    )
     phone = contact.phone_number
 
     text_for_group = (
@@ -348,7 +352,6 @@ async def on_contact_shared(message: types.Message, state: FSMContext):
         f"Служение: <b>{department}</b>\n"
         f"Имя (введено): <b>{full_name}</b>\n"
         f"Username: {username}\n"
-        f"User ID: <code>{message.from_user.id}</code>\n"
         f"Телефон: <code>{phone}</code>\n"
         f"Комментарий: {contact_owner}"
     )
