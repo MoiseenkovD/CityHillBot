@@ -6,6 +6,7 @@ from texts import WELCOME_TEXT, HELP_TEXT
 from keyboards import categories_keyboard
 from states import JoinFlow
 from config import START_FEED_CHAT_ID
+from utils import user_link
 
 router = Router()
 
@@ -19,13 +20,17 @@ async def cmd_start(message: types.Message, state: FSMContext):
     # Уведомление во вторую группу о запуске (если настроено)
     if START_FEED_CHAT_ID:
         try:
-            username = f"@{message.from_user.username}" if message.from_user.username else "(нет username)"
+            if message.from_user.username:
+                username_or_link = f"@{message.from_user.username}"
+            else:
+                username_or_link = user_link(message.from_user, f"{message.from_user.full_name}")
+
             feed_text = (
                 "📣 Новый отклик: /start\n"
                 f"Имя: {message.from_user.full_name}\n"
-                f"Username: {username}\n"
-                f"User ID: {message.from_user.id}\n"
+                f"Контакт: {username_or_link}\n"
             )
+
             await message.bot.send_message(chat_id=START_FEED_CHAT_ID, text=feed_text)
         except Exception as e:
             print(f"[WARN] Не удалось отправить уведомление о старте: {e}")

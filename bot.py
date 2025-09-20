@@ -15,6 +15,7 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 
+from utils import user_link
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -185,17 +186,19 @@ async def cmd_start(message: types.Message, state: FSMContext):
     # --- Уведомление во вторую группу об отклике на /start (если настроено) ---
     if START_FEED_CHAT_ID:
         try:
-            username = f"@{message.from_user.username}" if message.from_user.username else "(нет username)"
-            # Без HTML-тегов, чтобы не париться с экранированием имени
+            if message.from_user.username:
+                username_or_link = f"@{message.from_user.username}"
+            else:
+                username_or_link = user_link(message.from_user, f"{message.from_user.full_name}")
+
             feed_text = (
                 "📣 Новый отклик: /start\n"
                 f"Имя: {message.from_user.full_name}\n"
-                f"Username: {username}\n"
-                f"User ID: {message.from_user.id}\n"
+                f"Контакт: {username_or_link}\n"
             )
-            await bot.send_message(chat_id=START_FEED_CHAT_ID, text=feed_text)
+
+            await message.bot.send_message(chat_id=START_FEED_CHAT_ID, text=feed_text)
         except Exception as e:
-            # Тихо игнорируем ошибку, чтобы не мешать основному сценарию
             print(f"[WARN] Не удалось отправить уведомление о старте: {e}")
 
 @dp.callback_query(F.data.startswith("cat:"))

@@ -1,7 +1,13 @@
 import re
+from aiogram import types
 from typing import Optional
 
 PHONE_RE = re.compile(r"\+?\d[\d\-\s\(\)]{8,}")
+
+
+def user_link(user: types.User, label: Optional[str] = None) -> str:
+    text = label or (user.full_name or "профиль")
+    return f'<a href="tg://user?id={user.id}">{text}</a>'
 
 
 def extract_phone(text: str) -> Optional[str]:
