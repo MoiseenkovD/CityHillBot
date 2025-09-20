@@ -99,7 +99,12 @@ async def on_contact_text(message: types.Message, state: FSMContext):
         await message.answer(PHONE_NOT_RECOGNIZED, reply_markup=contact_request_kb())
         return
 
-    username = f"@{message.from_user.username}" if message.from_user.username else "(нет username)"
+    # username = f"@{message.from_user.username}" if message.from_user.username else "(нет username)"
+    username = (
+        f"@{message.from_user.username}"
+        if message.from_user.username
+        else user_link(message.from_user, f"{message.from_user.full_name}")
+    )
 
     text_for_group = (
         "<b>Новая заявка на служение</b>\n"
