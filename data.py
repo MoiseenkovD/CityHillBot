@@ -5,7 +5,7 @@ CATEGORY_TITLES: Dict[str, str] = {
     "kids":         "👶 Kids",
     "youth":        "🔥 Youth | Teens",
     "media":        "🎥 Media",
-    "welcome":      "🤝 Welcome Service",
+    "welcome":      "🤝 Welcome Team",
     "hospitality":  "🥗 Hospitality",
     "discover":     "✨ Discover Your Calling",
 }
