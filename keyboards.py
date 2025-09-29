@@ -1,13 +1,24 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
-from data import CATEGORY_TITLES, DEPARTMENTS_BY_CATEGORY  # ← абсолютный импорт
+from data import CATEGORY_TITLES, DEPARTMENTS_BY_CATEGORY
 
 
-def categories_keyboard(cols: int = 2) -> InlineKeyboardMarkup:
+def flow_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="Slavic 9:15am", callback_data="flow:slavic"),
+            InlineKeyboardButton(text="Hybrid 1:15pm", callback_data="flow:hybrid"),
+        ],
+    ])
+
+
+def categories_keyboard(cols: int = 2, add_back_to_flow: bool = True) -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(text=title, callback_data=f"cat:{key}")
         for key, title in CATEGORY_TITLES.items()
     ]
     rows = [buttons[i:i+cols] for i in range(0, len(buttons), cols)]
+    if add_back_to_flow:
+        rows.append([InlineKeyboardButton(text="⬅️ К выбору потока", callback_data="back:flow")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

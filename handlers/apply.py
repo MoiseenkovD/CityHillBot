@@ -7,7 +7,7 @@ from texts import ASK_FULLNAME_TEXT, AFTER_FULLNAME_TEXT, PHONE_NOT_RECOGNIZED, 
 from keyboards import contact_request_kb
 from utils import extract_phone, user_link
 from data import CATEGORY_TITLES
-from config import TARGET_CHAT_ID
+from config import select_target_chat_id
 
 router = Router()
 
@@ -16,14 +16,21 @@ router = Router()
 async def on_apply_selected(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     department = data.get("department")
+    category_key = data.get("category_key")
+    flow = data.get("flow")
+
+    # поток обязателен для всех сценариев теперь (включая discover)
+    if not flow:
+        await callback.answer("Сначала выбери поток: /start", show_alert=True)
+        return
+
     if not department:
-        await callback.answer("Сначала выберите служение.", show_alert=True)
+        await callback.answer("Сначала выбери служение.", show_alert=True)
         return
 
     await callback.message.answer(ASK_FULLNAME_TEXT)
     await state.set_state(JoinFlow.waiting_fullname)
     await callback.answer()
-
 
 @router.message(JoinFlow.waiting_fullname, F.text)
 async def on_fullname(message: types.Message, state: FSMContext):
@@ -39,6 +46,23 @@ async def on_fullname(message: types.Message, state: FSMContext):
     )
     await state.set_state(JoinFlow.waiting_contact)
 
+def _username_or_profile(u: types.User) -> str:
+    return f"@{u.username}" if u.username else user_link(u, "профиль")
+
+async def _send_application(bot, chat_id: int, *, category_title: str, department: str, full_name: str,
+                           from_user: types.User, phone: str, contact_owner: str, flow: str):
+    flow_line = f"Поток: <b>{'Slavic' if flow=='slavic' else 'Hybrid'}</b>\n"
+    text_for_group = (
+        "<b>Новая заявка на служение</b>\n"
+        f"{flow_line}"
+        f"Раздел: <b>{category_title}</b>\n"
+        f"Служение: <b>{department}</b>\n"
+        f"Имя (введено): <b>{full_name}</b>\n"
+        f"Контакт: {_username_or_profile(from_user)}\n"
+        f"Телефон: <code>{phone}</code>\n"
+        f"Комментарий: {contact_owner}"
+    )
+    await bot.send_message(chat_id=chat_id, text=text_for_group)
 
 @router.message(JoinFlow.waiting_contact, F.contact)
 async def on_contact_shared(message: types.Message, state: FSMContext):
@@ -47,6 +71,7 @@ async def on_contact_shared(message: types.Message, state: FSMContext):
     category_key = data.get("category_key")
     category_title = CATEGORY_TITLES.get(category_key, "—")
     full_name = data.get("full_name") or message.from_user.full_name
+    flow = data.get("flow")
 
     contact = message.contact
     contact_owner = (
@@ -54,25 +79,21 @@ async def on_contact_shared(message: types.Message, state: FSMContext):
         if contact.user_id == message.from_user.id
         else f"передал(а) контакт: {contact.first_name or ''} {contact.last_name or ''}".strip()
     )
-
-    username = (
-        f"@{message.from_user.username}"
-        if message.from_user.username
-        else user_link(message.from_user, f"{message.from_user.full_name}")
-    )
     phone = contact.phone_number
 
-    text_for_group = (
-        "<b>Новая заявка на служение</b>\n"
-        f"Раздел: <b>{category_title}</b>\n"
-        f"Служение: <b>{department}</b>\n"
-        f"Имя (введено): <b>{full_name}</b>\n"
-        f"Username: {username}\n"
-        f"Телефон: <code>{phone}</code>\n"
-        f"Комментарий: {contact_owner}"
-    )
+    target_chat_id = select_target_chat_id(flow)
+
     try:
-        await message.bot.send_message(chat_id=TARGET_CHAT_ID, text=text_for_group)
+        await _send_application(
+            message.bot, target_chat_id,
+            category_title=category_title,
+            department=department,
+            full_name=full_name,
+            from_user=message.from_user,
+            phone=phone,
+            contact_owner=contact_owner,
+            flow=flow
+        )
     except Exception as e:
         await message.answer(
             "Не удалось отправить заявку в группу. Сообщи администратору.\n"
@@ -85,7 +106,6 @@ async def on_contact_shared(message: types.Message, state: FSMContext):
     await message.answer(THANKS_SENT, reply_markup=ReplyKeyboardRemove())
     await state.clear()
 
-
 @router.message(JoinFlow.waiting_contact, F.text)
 async def on_contact_text(message: types.Message, state: FSMContext):
     data = await state.get_data()
@@ -93,29 +113,27 @@ async def on_contact_text(message: types.Message, state: FSMContext):
     category_key = data.get("category_key")
     category_title = CATEGORY_TITLES.get(category_key, "—")
     full_name = data.get("full_name") or message.from_user.full_name
+    flow = data.get("flow")
 
     phone = extract_phone(message.text)
     if not phone:
+        from keyboards import contact_request_kb
         await message.answer(PHONE_NOT_RECOGNIZED, reply_markup=contact_request_kb())
         return
 
-    # username = f"@{message.from_user.username}" if message.from_user.username else "(нет username)"
-    username = (
-        f"@{message.from_user.username}"
-        if message.from_user.username
-        else user_link(message.from_user, f"{message.from_user.full_name}")
-    )
+    target_chat_id = select_target_chat_id(flow)
 
-    text_for_group = (
-        "<b>Новая заявка на служение</b>\n"
-        f"Раздел: <b>{category_title}</b>\n"
-        f"Служение: <b>{department}</b>\n"
-        f"Имя (введено): <b>{full_name}</b>\n"
-        f"Username: {username}\n"
-        f"Телефон: <code>{phone}</code>"
-    )
     try:
-        await message.bot.send_message(chat_id=TARGET_CHAT_ID, text=text_for_group)
+        await _send_application(
+            message.bot, target_chat_id,
+            category_title=category_title,
+            department=department,
+            full_name=full_name,
+            from_user=message.from_user,
+            phone=phone,
+            contact_owner="ввел(а) номер вручную",
+            flow=flow
+        )
     except Exception as e:
         await message.answer(
             "Не удалось отправить заявку в группу. Сообщи администратору.\n"

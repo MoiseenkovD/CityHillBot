@@ -21,11 +21,17 @@ async def on_category_chosen(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("Неизвестный раздел.", show_alert=True)
         return
 
+    # поток уже выбран ранее — проверим на всякий случай
+    data = await state.get_data()
+    if not data.get("flow"):
+        await callback.answer("Сначала выбери поток: /start", show_alert=True)
+        return
+
     await state.update_data(category_key=category_key)
 
     # Discover: сразу описание + кнопка "Подать заявку"
     if category_key == "discover":
-        await state.update_data(department="Discover consultation")  # виртуальное служение
+        await state.update_data(department="Discover consultation")
         text = build_category_description_text(category_key)
         await callback.message.edit_text(text, reply_markup=dept_apply_keyboard())
         await state.set_state(JoinFlow.waiting_apply)
@@ -37,13 +43,11 @@ async def on_category_chosen(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(JoinFlow.waiting_department)
     await callback.answer()
 
-
 @router.callback_query(F.data == "back:categories")
 async def on_back_to_categories(callback: types.CallbackQuery, state: FSMContext):
-    await callback.message.edit_text(WELCOME_TEXT, reply_markup=categories_keyboard())
+    await callback.message.edit_text("Выбери раздел служения:", reply_markup=categories_keyboard())
     await state.set_state(JoinFlow.waiting_category)
     await callback.answer()
-
 
 @router.callback_query(F.data.startswith("dept:"))
 async def on_department_chosen(callback: types.CallbackQuery, state: FSMContext):
@@ -62,10 +66,11 @@ async def on_department_chosen(callback: types.CallbackQuery, state: FSMContext)
 
     await state.update_data(department=department)
     text = build_dept_description_text(category_key, department)
+
+    # ПОТОК уже выбран на первом шаге → сразу показываем «Подать заявку»
     await callback.message.edit_text(text, reply_markup=dept_apply_keyboard())
     await state.set_state(JoinFlow.waiting_apply)
     await callback.answer()
-
 
 @router.callback_query(F.data == "back:depts")
 async def on_back_to_depts(callback: types.CallbackQuery, state: FSMContext):
@@ -76,7 +81,7 @@ async def on_back_to_depts(callback: types.CallbackQuery, state: FSMContext):
         return
 
     if category_key == "discover":
-        await callback.message.edit_text(WELCOME_TEXT, reply_markup=categories_keyboard())
+        await callback.message.edit_text("Выбери раздел служения:", reply_markup=categories_keyboard())
         await state.set_state(JoinFlow.waiting_category)
         await callback.answer()
         return

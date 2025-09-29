@@ -385,7 +385,7 @@ async def on_contact_text(message: types.Message, state: FSMContext):
     if not phone:
         await message.answer(
             "Похоже, номер не распознан 🤔\n"
-            "Пришли его целиком: <code>+1 (425) 563-0696</code> или <code>380939424247</code>\n\n"
+            "Пришли его целиком: <code>+1 (425) 567-0897</code> или <code>380939434746</code>\n\n"
             "Или нажми «📱 Поделиться контактом».",
             reply_markup=ReplyKeyboardMarkup(
                 keyboard=[
