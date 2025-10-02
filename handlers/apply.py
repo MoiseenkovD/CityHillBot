@@ -73,8 +73,7 @@ async def _send_application(
         f"Служение: <b>{department}</b>\n"
         f"Имя (введено): <b>{full_name}</b>\n"
         f"Контакт: {_username_or_profile(from_user)}\n"
-        f"User ID: <code>{from_user.id}</code>\n"
-        f"Телефон (US): <code>{phone}</code>\n"
+        f"Телефон: <code>{phone}</code>\n"
         f"Комментарий: {contact_owner}"
     )
     await bot.send_message(chat_id=chat_id, text=text_for_group)
