@@ -2,21 +2,27 @@ import re
 from typing import Optional
 from aiogram import types
 
-PHONE_RE = re.compile(r"\+?\d[\d\-\s\(\)]{8,}")
+
+_US_10_DIGITS = re.compile(r"^\d{10}$")
+_US_11_WITH_1 = re.compile(r"^1\d{10}$")
+_US_PLUS = re.compile(r"^\+1\d{10}$")
 
 
-def extract_phone(text: str) -> Optional[str]:
+def normalize_us_phone(text: str) -> Optional[str]:
     if not text:
         return None
-    m = PHONE_RE.search(text)
-    if not m:
-        return None
-    raw = m.group(0)
-    has_plus = raw.strip().startswith("+")
+    # убираем всё, кроме цифр и +
+    raw = text.strip()
     digits = re.sub(r"\D", "", raw)
-    if len(digits) < 9:
-        return None
-    return f"+{digits}" if has_plus else digits
+
+    if _US_10_DIGITS.match(digits):
+        return f"+1{digits}"
+    if _US_11_WITH_1.match(digits):
+        return f"+{digits}"
+    if _US_PLUS.match(raw.replace(" ", "")):
+        return raw.replace(" ", "")
+    return None
+
 
 def user_link(user: types.User, label: Optional[str] = None) -> str:
     text = label or (user.full_name or "профиль")
